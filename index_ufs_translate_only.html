@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>UFS Interpreter Trainer</title>
+<style>
+:root{--bg:#0f1115;--card:#191c23;--muted:#9aa3b2;--text:#f2f5f8;--accent:#7dd3fc;--good:#86efac;--warn:#fde68a;--bad:#fca5a5;--border:#2a2f3a}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(180deg,#0f1115,#151821);color:var(--text);padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+.app{max-width:720px;margin:0 auto}
+h1{font-size:28px;margin:8px 0 4px}.sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+button{border:0;border-radius:14px;padding:13px 14px;font-weight:700;background:#242936;color:var(--text);font-size:15px}
+button.active{background:var(--accent);color:#071018}
+.card{background:rgba(25,28,35,.96);border:1px solid var(--border);border-radius:22px;padding:18px;box-shadow:0 12px 32px rgba(0,0,0,.25)}
+.label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.prompt{font-size:23px;line-height:1.35;margin:8px 0 14px;white-space:pre-wrap}
+.answer,.feedback{display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px;color:#e8eef5;white-space:pre-wrap;line-height:1.45}
+.answer.show,.feedback.show{display:block}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.small{font-size:13px;color:var(--muted);line-height:1.45}
+textarea{width:100%;border-radius:14px;border:1px solid var(--border);background:#11141b;color:var(--text);padding:12px;font-size:16px;outline:none;margin-top:10px}
+.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#222734;color:var(--muted);font-size:12px;margin:4px 4px 0 0}
+.score{display:flex;justify-content:space-between;gap:8px;margin:12px 0;color:var(--muted);font-size:13px}.grade{font-size:32px;font-weight:900;margin:4px 0}
+.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}.footer{margin-top:14px;color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>UFS Interpreter Trainer</h1>
+<div class="sub">Bidirectional UFS interpreting practice: Korean ↔ English</div>
+<div class="tabs">
+<button id="tabRandom" class="active" onclick="setDirection('random')">Random</button>
+<button id="tabKoEn" onclick="setDirection('ko-en')">KR → EN</button>
+<button id="tabEnKo" onclick="setDirection('en-ko')">EN → KR</button>
+</div>
+<div class="score"><span id="modeText">Mode: Random direction</span><span id="countText"></span></div>
+<div class="card">
+<div class="label" id="cardLabel">Prompt</div>
+<div class="prompt" id="prompt"></div>
+<textarea id="notes" rows="5" placeholder="Type your interpretation here..."></textarea>
+<div class="row"><button onclick="speakPrompt()">🔊 Play Prompt</button><button onclick="gradeAnswer()">Grade Answer</button></div>
+<div class="row3"><button onclick="toggleAnswer()">Show Answer</button><button onclick="nextCard()">Next</button><button onclick="markGood()">Got it</button></div>
+<div class="feedback" id="feedback"></div><div class="answer" id="answer"></div>
+</div>
+<div class="card" style="margin-top:12px"><div class="label">Practice Tip</div><div class="small" id="tip"></div><div id="tags"></div></div>
+<div class="footer">For GitHub Pages: upload this file as <b>index.html</b></div>
+</div>
+<script>
+const fixedCards=[
+{ko:"대장님, 최근 평가에 따르면 적은 미사일 화력과 사이버 능력을 계속 증강하고 있습니다.",en:"General, according to our recent assessment, the enemy continues to expand its missile firepower and cyber capabilities.",keysEN:["general","assessment","enemy","missile","cyber","capabilities"],keysKO:["대장","평가","적","미사일","사이버","능력"]},
+{ko:"현재로서는 즉각적인 공격 징후는 없지만, 연합군의 준비태세를 강화할 필요가 있습니다.",en:"At this time, there are no indications of an imminent attack, but we need to strengthen combined readiness.",keysEN:["indications","imminent","attack","combined","readiness","strengthen"],keysKO:["현재","즉각","공격","징후","연합군","준비태세","강화"]},
+{ko:"정량적인 증원이 단기간 내에는 제한되기 때문에, 운용 방식의 질적 변화가 필요합니다.",en:"Because quantitative reinforcement is limited in the short term, we need qualitative changes in the way we operate.",keysEN:["quantitative","reinforcement","limited","short term","qualitative","operate"],keysKO:["정량적","증원","단기간","제한","질적","운용"]},
+{ko:"이번 훈련은 연합방위태세를 검증하고 한미동맹의 억제력을 보여주는 좋은 기회입니다.",en:"This exercise is a valuable opportunity to validate our combined defense posture and demonstrate the deterrence of the ROK-U.S. alliance.",keysEN:["exercise","validate","combined defense posture","deterrence","alliance"],keysKO:["훈련","연합방위태세","검증","한미동맹","억제력"]},
+{ko:"제한된 ISR 자산 때문에 고가치 표적과 주요 적 능력을 우선적으로 감시해야 합니다.",en:"Due to limited ISR assets, we must prioritize surveillance of high-value targets and key enemy capabilities.",keysEN:["limited","ISR","assets","prioritize","surveillance","high-value targets","enemy capabilities"],keysKO:["제한","ISR","자산","우선","감시","고가치 표적","적 능력"]},
+{ko:"적의 장거리 화력 증가에 따라 생존성을 높이기 위해 전력을 분산하고 기동성을 향상시켜야 합니다.",en:"As the enemy increases its long-range fires, we must disperse our forces and improve mobility to increase survivability.",keysEN:["enemy","long-range fires","disperse","forces","mobility","survivability"],keysKO:["적","장거리 화력","분산","전력","기동성","생존성"]}
+];
+const subjects=[
+["대통령은","The President"],["국방부 장관은","The Minister of National Defense"],["미 국방장관은","The Secretary of Defense"],["합참의장은","The Chairman of the Joint Chiefs of Staff"],["연합사령관은","The Commander of Combined Forces Command"],["유엔군사령관은","The Commander of United Nations Command"],["주한미군사령관은","The Commander of United States Forces Korea"],["미8군은","Eighth Army"],["7공군은","Seventh Air Force"],["J2 정보참모부는","The J2 intelligence section"],["J3 작전참모부는","The J3 operations section"],["J4 군수참모부는","The J4 logistics section"],["J5 전략기획참모부는","The J5 plans section"],["정보분석관은","The intelligence analyst"],["ISR 기획관은","The ISR planner"],["표적처리반은","The targeting cell"],["연합군은","Combined forces"],["아군은","Friendly forces"],["지상군은","Ground forces"],["공군은","Air forces"],["해군은","Naval forces"],["해병대는","Marine forces"],["우주전력은","Space forces"],["사이버전력은","Cyber forces"],["합동화력반은","The joint fires cell"],["방공부대는","Air defense units"],["미사일방어부대는","Missile defense units"],["신속대응부대는","The quick reaction force"],["전투기 편대는","The fighter squadron"],["무인기 운용팀은","The UAV operators"],["항모강습단은","The carrier strike group"],["잠수함 전력은","The submarine force"],["보병대대는","The infantry battalion"],["기갑여단은","The armored brigade"],["포병여단은","The artillery brigade"],["공병대대는","The engineer battalion"],["화생방대대는","The CBRN battalion"],["정찰팀은","The reconnaissance team"],["사이버작전센터는","The Cyber Operations Center"],["전자전부대는","The electronic warfare unit"],["군수기획관은","The logistics planner"],["의무지원팀은","The medical support team"],["보급수송대는","The supply convoy"],["정비팀은","The maintenance team"],["적 지휘부는","Enemy leadership"],["적 포병부대는","Enemy artillery units"],["적 미사일부대는","Enemy missile forces"],["적 방공망은","The enemy air defense network"],["적 사이버부대는","Enemy cyber units"],["적 군수거점은","Enemy logistics hubs"],["적 특수전부대는","Enemy special operations forces"],["적 지휘소는","Enemy command posts"],["민간인은","The civilian population"],["동맹국 정부는","Allied governments"]
+];
+const actions=[
+["장거리 포병 활동을 증가시키고 있습니다.","has increased long-range artillery activity."],["미사일 발사 준비를 계속하고 있습니다.","continues preparations for missile launches."],["사이버 공격을 확대하고 있습니다.","has expanded cyber operations."],["GPS 교란을 실시하고 있습니다.","is conducting GPS jamming."],["무인기를 이용한 정찰을 강화하고 있습니다.","has intensified UAV reconnaissance."],["병력을 전방으로 이동시키고 있습니다.","is moving forces toward forward positions."],["해상 침투를 시도하고 있습니다.","is attempting maritime infiltration."],["전자전을 수행하고 있습니다.","is conducting electronic warfare."],["보급선을 재편하고 있습니다.","is reorganizing logistics routes."],["화생방 위협을 증가시키고 있습니다.","is increasing CBRN threats."],["지휘통제망을 점검하고 있습니다.","is reviewing command and control networks."],["연합 감시태세를 강화하고 있습니다.","is strengthening combined surveillance posture."],["중요 표적을 우선 식별하고 있습니다.","is prioritizing the identification of key targets."],["후방 지역의 방호태세를 강화하고 있습니다.","is strengthening protection of rear areas."],["민간인 대피 계획을 검토하고 있습니다.","is reviewing civilian evacuation plans."],["공중 방어태세를 상향하고 있습니다.","is raising the air defense posture."]
+];
+const effects=[
+["따라서 대비태세를 강화해야 합니다.","Therefore, we should strengthen our readiness."],["우선 ISR 자산을 집중해야 합니다.","ISR assets should be prioritized."],["연합 감시 활동을 확대할 것을 권고합니다.","We recommend expanding combined surveillance."],["고가치 표적을 우선 감시해야 합니다.","High-value targets should be monitored first."],["작전계획을 재검토해야 합니다.","The operational plan should be reviewed."],["억제태세를 유지해야 합니다.","We must maintain our deterrence posture."],["지휘통제체계를 점검해야 합니다.","Command and control systems should be reviewed."],["동맹 간 협조를 강화해야 합니다.","Coordination between allies should be strengthened."],["전력보호 조치를 즉시 시행해야 합니다.","Force protection measures should be implemented immediately."],["추가 보고는 다음 연합상황회의에서 제공하겠습니다.","A follow-up report will be provided at the next combined update briefing."]
+];
+function rand(a){return a[Math.floor(Math.random()*a.length)]}
+function makeGeneratedCard(){const s=rand(subjects),a=rand(actions),e=rand(effects);const ko=s[0]+" "+a[0]+"\n"+e[0];const en=s[1]+" "+a[1]+"\n"+e[1];const keysEN=en.toLowerCase().replace(/[^\w\s-]/g,"").split(/\s+/).filter(w=>w.length>4);const keysKO=(ko.match(/[가-힣A-Za-z0-9]+/g)||[]).filter(w=>w.length>1);return{ko,en,keysEN:[...new Set(keysEN)].slice(0,10),keysKO:[...new Set(keysKO)].slice(0,10),generated:true}}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+shuffle(fixedCards);
+let direction="random",actualDirection="ko-en",index=0,good=0,currentCard=null;
+function setDirection(d){direction=d;index=0;document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));document.getElementById(d==="random"?"tabRandom":d==="ko-en"?"tabKoEn":"tabEnKo").classList.add("active");document.getElementById("modeText").textContent=d==="random"?"Mode: Random direction":d==="ko-en"?"Mode: Korean → English":"Mode: English → Korean";render()}
+function chooseDirection(){return direction==="random"?(Math.random()>.5?"ko-en":"en-ko"):direction}
+function render(){document.getElementById("notes").value="";document.getElementById("answer").classList.remove("show");document.getElementById("feedback").classList.remove("show");currentCard=index<fixedCards.length?fixedCards[index]:makeGeneratedCard();actualDirection=chooseDirection();const promptText=actualDirection==="ko-en"?currentCard.ko:currentCard.en;const answerText=actualDirection==="ko-en"?currentCard.en:currentCard.ko;document.getElementById("cardLabel").textContent=actualDirection==="ko-en"?"Korean → English":"English → Korean";document.getElementById("prompt").textContent=promptText;document.getElementById("answer").textContent="Suggested interpretation:\n"+answerText;document.getElementById("tip").textContent=actualDirection==="ko-en"?"Translate the meaning naturally into English. Use briefing language: readiness, deterrence, ISR, command and control.":"Translate the meaning naturally into Korean. Use military Korean: 대비태세, 억제력, 연합군, 지휘통제, 감시정찰.";const tags=actualDirection==="ko-en"?currentCard.keysEN:currentCard.keysKO;document.getElementById("tags").innerHTML=(tags||[]).slice(0,6).map(t=>`<span class="pill">${t}</span>`).join("");document.getElementById("countText").textContent=`#${index+1} · ✅ ${good}`}
+function normalizeEN(s){return s.toLowerCase().replace(/[^\w\s-]/g," ").replace(/\s+/g," ").trim()}
+function normalizeKO(s){return s.replace(/[^\w가-힣\s-]/g," ").replace(/\s+/g," ").trim()}
+function gradeAnswer(){const raw=document.getElementById("notes").value.trim();const fb=document.getElementById("feedback");if(raw.length<5){fb.className="feedback show";fb.innerHTML="<div class='grade bad'>Need more</div>Type your interpretation first, then press Grade Answer.";return}const target=actualDirection==="ko-en"?currentCard.en:currentCard.ko;const keys=actualDirection==="ko-en"?currentCard.keysEN:currentCard.keysKO;const user=actualDirection==="ko-en"?normalizeEN(raw):normalizeKO(raw);const normalizedKeys=(keys||[]).map(k=>actualDirection==="ko-en"?normalizeEN(k):normalizeKO(k)).filter(Boolean);let hit=0,missed=[];normalizedKeys.forEach(k=>{if(user.includes(k)||k.split(" ").some(part=>part.length>3&&user.includes(part)))hit++;else missed.push(k)});const keyScore=normalizedKeys.length?hit/normalizedKeys.length:0;const lengthRatio=Math.min(raw.length/Math.max(60,target.length*0.45),1);const toneRegex=actualDirection==="ko-en"?/(readiness|deterrence|combined|command|control|forces|operations|intelligence|surveillance|missile|cyber|defense|posture|assets|target|logistics|enemy|alliance|isr|cbrn)/i:/(대비태세|억제|연합|지휘|통제|전력|작전|정보|감시|정찰|미사일|사이버|방어|자산|표적|군수|적|동맹|화생방)/;const hasMilitaryTone=toneRegex.test(raw)?1:0;const score=Math.round((keyScore*70)+(lengthRatio*20)+(hasMilitaryTone*10));const cls=score>=80?"good":score>=60?"warn":"bad";const label=score>=90?"Excellent":score>=80?"Good":score>=60?"Passable":"Needs work";let tips=[];if(keyScore<.65)tips.push(actualDirection==="ko-en"?"You missed some key military meaning.":"핵심 군사용어/의미가 일부 빠졌습니다.");if(lengthRatio<.65)tips.push(actualDirection==="ko-en"?"Your answer may be too short or incomplete.":"답변이 너무 짧거나 일부 내용이 빠졌을 수 있습니다.");if(!hasMilitaryTone)tips.push(actualDirection==="ko-en"?"Use more military briefing terms.":"군사용 한국어 표현을 더 사용해 보세요.");if(tips.length===0)tips.push(actualDirection==="ko-en"?"Strong answer. Keep it concise and confident.":"좋은 답변입니다. 간결하고 자신 있게 말하면 됩니다.");fb.className="feedback show";fb.innerHTML=`<div class="label">Feedback</div><div class="grade ${cls}">${score}/100 · ${label}</div><b>Matched key terms:</b> ${hit}/${normalizedKeys.length||0}<br><b>Missed / check:</b> ${missed.slice(0,6).join(", ")||"None"}<br><br><b>Feedback:</b> ${tips.join(" ")}<br><br><b>Suggested answer:</b><br>${target}`}
+function toggleAnswer(){document.getElementById("answer").classList.toggle("show")}
+function nextCard(){index++;render()}
+function markGood(){good++;nextCard()}
+function speakPrompt(){const text=document.getElementById("prompt").textContent;if(!("speechSynthesis" in window))return alert("Speech not supported on this browser.");window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=/[가-힣]/.test(text)?"ko-KR":"en-US";u.rate=0.9;window.speechSynthesis.speak(u)}
+render();
+</script>
+</body>
+</html>
